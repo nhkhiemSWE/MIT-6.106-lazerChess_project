@@ -1,0 +1,21 @@
+cpus = 2
+game_rounds = 20
+title = basic
+adjudicate = 400
+verbose = true
+
+player = LC_cutoff_0
+invoke = ../player/binaries/LC_cutoff_0
+fis = 120 2.0
+
+player = LC_cutoff_6
+invoke = ../player/binaries/LC_cutoff_6
+fis = 120 2.0
+
+player = LC_cutoff_12
+invoke = ../player/binaries/LC_cutoff_12
+fis = 120 2.0
+
+player = current_main
+invoke = ../player/binaries/current_final
+fis = 120 2.0

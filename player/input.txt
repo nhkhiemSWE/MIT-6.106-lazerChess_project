@@ -1,0 +1,5 @@
+setoption name reset_rng value 1
+move e1R
+move a7a6
+go depth 12
+quit

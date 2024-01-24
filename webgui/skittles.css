@@ -1,0 +1,329 @@
+/**
+ * Copyright (c) 2022 MIT License by 6.172 / 6.106 Staff
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to
+ * deal in the Software without restriction, including without limitation the
+ * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+ * sell copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+ * IN THE SOFTWARE.
+ **/
+
+ .container {
+    display: flex;
+    /*max-width: 1000px;
+    margin: 0 auto;
+   */
+   justify-content: center;
+  }
+ 
+  .info-container {
+    margin-top: 22px;
+    flex-grow: 1;
+    flex-basis:20%;
+    max-width: 400px;
+    margin-left: 20px;
+    margin-right: 20px;
+  }
+ 
+  #info-block-white {
+   background-color: #ff940014
+  }
+ 
+  #info-block-black {
+   background-color: #b97dff1f;
+  }
+ 
+  .info-block {
+   overflow-y: auto;
+   resize: vertical;
+   font-family: monospace;
+   border-style: solid;
+   border-width: 2px;
+   white-space: pre-line;
+   margin-top: 0.75em;
+   width: 100%;
+   height: 300px;
+  }
+ 
+  #global {
+   flex-shrink: 0;
+   width: 750px;
+   position: relative;
+ }
+ 
+ #global h1 {
+   margin-left: 160px;
+   margin-bottom: 0px;
+ }
+ 
+ #global #rules {
+   padding-top: 0px;
+   text-align: center;
+   font-size: 1.25em;
+   line-height: 2.5em;
+ }
+ 
+ .whiteinfo, .blackinfo {
+   display: block;
+   padding: 4px;
+ }
+ 
+ .whiteinfo {
+   color: #CD6721;
+ }
+ 
+ .blackinfo {
+   color: #9C3AF5;
+ }
+ 
+ #info {
+   overflow-y: auto;
+   resize: vertical;
+   font-family: monospace;
+   border-style: solid;
+   white-space: pre-line;
+   margin-top: 0.75em;
+   width: 750px;
+   height: 200px;
+ }
+ 
+ .info-row {
+   display: flex;
+ }
+ 
+ .info-col {
+   flex: 50%;
+ }
+ 
+ .info-row:nth-child(even) {
+   background-color: #eee;
+ }
+ 
+ #control {
+   float: right;
+   width: 200px;
+   margin: 5px;
+   margin-top: -36px;
+ }
+ 
+ #control input {
+   width: 100%;
+   background-color: #E0E0E0;
+ }
+ 
+ #control input.box {
+   width: 60%;
+   background-color: #FFFFFF;
+   font-family: Monaco, "Andale Mono", "Lucida Console", "Courier New", Courier, monospace;
+ }
+ 
+ #control input.box:disabled {
+   background-color: #DDDDDD;
+ }
+ 
+ #control input.highlight {
+   background-color: #DDDD33;
+ }
+ 
+ #control input.action-button {
+   font-size: 8pt;
+   width: 30%
+ }
+ 
+ #control input.hist-button {
+   font-size: 8pt;
+   width: 22%
+ }
+ 
+ #control input.action-button:disabled,
+ input.hist-button:disabled {
+   opacity: 0.3;
+ }
+ 
+ #board-parent {
+   width: 500px;
+   height: 500px;
+   border-style: solid;
+   border-width: 2px;
+   z-index: -1;
+ }
+ 
+ #board-wrapper {
+   width: 530px;
+   height: 530px;
+   padding-bottom: 25px;
+   padding-left: 20px;
+   font-size: 150%;
+ }
+ 
+ #board-history {
+   background-color: #FFFEEE;
+   width: 180px;
+   height: 280px;
+   padding: 10px;
+   border-style: solid;
+   border-width: 1px;
+   overflow: auto;
+   font-family: Monaco, "Andale Mono", "Lucida Console", "Courier New", Courier, monospace;
+ }
+ 
+ #move-no {
+   width: 55px;
+   float: left;
+   text-align: right;
+ }
+ 
+ #black-move {
+   width: 50px;
+   float: left;
+   color: #CD6721;
+ }
+ 
+ #white-move {
+   width: 50px;
+   float: left;
+   color: #9C3AF5;
+ }
+ 
+ #warning-text {
+   font-weight: bolder;
+   color: #ff0000;
+ }
+ 
+ div#move-no .historyInactive {
+   color: #DDDDDD;
+ }
+ 
+ div#black-move .historyInactive {
+   color: #F2D0B8;
+ }
+ 
+ div#white-move .historyInactive {
+   color: #E1CBF5;
+ }
+ 
+ #whitetime {
+   color: #CD6721;
+   font-size: 200%;
+ }
+ 
+ #blacktime {
+   color: #9C3AF5;
+   float: right;
+   font-size: 200%;
+ }
+ 
+ .piece {
+   z-index: 10;
+   position: absolute;
+ }
+ 
+ .board-label {
+   font-family: "Lucida Console";
+   position: absolute;
+ }
+ 
+ .fen-rep-block {
+   margin: 5px 0;
+ }
+ 
+ .fen-rep-label {
+   width: 100px;
+   display: inline-block;
+   font-weight: bold;
+   font-size: 11pt;
+   vertical-align: top;
+ }
+ 
+ .fen-rep {
+   width: 640px;
+   display: inline-block;
+   background-color: #DDEECC;
+   word-wrap: break-word;
+   font-family: Monaco, "Andale Mono", "Lucida Console", "Courier New", Courier, monospace;
+ }
+ 
+ .fen-rep-field {
+   width: 470px;
+ }
+ 
+ .standard-move-text {
+   font-weight: normal;
+   color: #000000;
+ }
+ 
+ .warning-move-text {
+   font-weight: bolder;
+   color: #ff0000;
+ }
+ 
+ #skittles-container { display: block; }
+ 
+ #skittles-container div {
+   display: inline-block;
+   margin: 2px;
+   vertical-align: middle;
+   height: 40px;
+ }
+ 
+ #skittles-add-white img, #skittles-add-gray img, #skittles-add-black img {
+   width: 100%;
+ }
+ 
+ #skittles-delete-zone {
+   width: 250px;
+   background-color: red;
+   color: white;
+   padding: 5px;
+   text-align: center;
+   line-height: 40px;
+   border: solid black 1px;
+ }
+ 
+ #skittles-pause {
+   width: 60px;
+   background-color: rgb(68, 0, 255);
+   color: white;
+   padding: 5px;
+   text-align: center;
+   line-height: 40px;
+   border: solid black 1px;
+ }
+ 
+ .skittles-action-button {
+   /* padding: 5px; */
+   margin: 5px;
+ }
+
+ .navbar {
+  overflow: hidden;
+  background-color: #333;
+  position: fixed;
+  top: 0;
+}
+
+.navbar a {
+  float: left;
+  display: block;
+  color: white;
+  text-align: center;
+  padding: 14px 16px;
+  text-decoration: none;
+}
+
+.navbar a:hover {
+  background-color: #ddd;
+  color: black;
+}

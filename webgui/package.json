@@ -1,0 +1,15 @@
+{
+  "name": "webgui",
+  "version": "1.0.0",
+  "description": "SETUP -------------------------------------------------------------------------------- * Compile leiserchess in player/ * Start the webserver via:",
+  "main": "board.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "eslint": "^7.13.0",
+    "eslint-config-google": "^0.14.0"
+  }
+}

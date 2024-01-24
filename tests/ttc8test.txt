@@ -1,0 +1,21 @@
+cpus = 2
+game_rounds = 200
+title = basic
+adjudicate = 400
+verbose = true
+
+player = piece_t_updated
+invoke = ../player/binaries/piece_t_updated
+fis = 10 1
+
+player = original
+invoke = ../player/binaries/original
+fis = 10 1
+
+player = monarch_loc
+invoke = ../player/binaries/monarch_loc_ttc8
+fis = 10 1
+
+player = simple_laser_coverage
+invoke = ../player/binaries/simple_LC_ttc8
+fis = 10 1

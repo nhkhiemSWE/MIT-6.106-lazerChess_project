@@ -1,0 +1,21 @@
+cpus = 2
+game_rounds = 100
+title = basic
+adjudicate = 400
+verbose = true
+
+player = piece_t_updated
+invoke = ../player/binaries/piece_t_updated
+fis = 6 .1
+
+player = referee
+invoke = ../tester/referee
+fis = 6 .1
+
+player = monarch_loc
+invoke = ../player/binaries/monarch_loc_ttc8
+fis = 6 .1
+
+player = simple_laser_coverage
+invoke = ../player/binaries/simple_LC_ttc8
+fis = 6 .1

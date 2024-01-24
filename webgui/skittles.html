@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <link rel="stylesheet" type="text/css" href="skittles.css">
+  <script type="text/javascript" src="jquery-1.8.2.min.js"></script>
+  <script src="jquery-ui-1.8.21.min.js"></script>
+  <script src="jquery.ui.touch-punch.min.js"></script>
+  <script type="text/javascript" src="jquery.transit.js" charset="utf-8"></script>
+  <script type="text/javascript" src="skittles-gui.js"></script>
+  <script type="text/javascript" src="skittles-board.js"></script>
+  <title>Leiserchess</title>
+</head>
+
+<body>
+  <div class="navbar">
+    <a href="index.html">2023</a>
+    <a href="skittles.html">Skittles</a>
+  </div>
+  <div class="container" style="margin-top:30px;">
+    <div id="global">
+      <h1>Leiserchess 2023</h1>
+      <div id="control">
+        <fieldset>
+          <input id="black-show-laser" type="button" class="skittles-action-button" value="Show Lavender Laser">
+          <input id="white-show-laser" type="button" class="skittles-action-button" value="Show Tangerine Laser">
+        </fieldset>
+        <fieldset style="display: none;">
+          <legend id="move-text" class="standard-move-text">Move</legend>
+          <input id="move" type="text" class="box" disabled="disabled">
+          <input id="move-button" type="button" class="action-button" value="Move" disabled="disabled">
+          <input id="laser-button" type="button" class="action-button" value="Fire!" disabled="disabled">
+          <input id="cancel-button" type="button" class="action-button" value="Cancel" disabled="disabled">
+          <input id="undo-button" type="button" class="action-button unusable" value="Undo" disabled="disabled">
+        </fieldset>
+        <fieldset>
+          <legend>History</legend>
+          <input id="skittles-hist-first-button" type="button" class="hist-button" value="&lt;&lt;" disabled="disabled">
+          <input id="skittles-hist-prev-button" type="button" class="hist-button" value="&lt;" disabled="disabled">
+          <input id="skittles-hist-next-button" type="button" class="hist-button" value="&gt;" disabled="disabled">
+          <input id="skittles-hist-last-button" type="button" class="hist-button" value="&gt;&gt;" disabled="disabled">
+        </fieldset>
+      </div>
+      <div id="board-wrapper">
+        <div id="board-parent">
+          <canvas id="cboard" width="500" height="500" style="z-index:-1"></canvas>
+        </div>
+      </div>
+
+      <div id="skittles-container">
+        <fieldset>
+          <legend>Skittles</legend>
+          <div id="skittles-add-white" style="width:40px;background-color: orange; color:white;padding:5px;text-align:center">
+            <img src="images/pawn-white.svg">
+          </div>
+          <div id="skittles-add-black" style="width:40px;background-color: rgb(152, 53, 218); color:white;padding:5px;text-align:center">
+            <img src="images/pawn-black.svg">
+          </div>
+          <div id="skittles-delete-zone">
+            Drop Piece Here To Delete
+          </div>
+        </fieldset>
+
+      </div>
+      <br/>
+
+      <div id="warning"><span id="warning-text"></span></div>
+      <div id="edit-rep">
+          <div id="fen-rep-nohist-block" class="fen-rep-block">
+            <div id="fen-rep-nohist-label" class="fen-rep-label">State: </div>
+            <div id="fen-rep-nohist" class="fen-rep"></div>
+          </div>
+          <div id="fen-rep-input-block" class="fen-rep-block">
+            <div id="fen-rep-input-label" class="fen-rep-label">Enter State: </div>
+            <input id="fen-text" type="text" class="fen-rep fen-rep-field">
+            <input id="fen-button" type="button" value="Set Board">
+          </div>
+      </div>
+    </div>
+  </div>
+</body>
+
+</html>

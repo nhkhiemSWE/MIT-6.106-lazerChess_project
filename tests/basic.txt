@@ -1,0 +1,13 @@
+cpus = 2
+game_rounds = 200
+title = basic
+adjudicate = 200
+verbose = true
+
+player = khiem_version
+invoke = ../player/binaries/current_final
+depth = 6
+
+player = khiem_version_2
+invoke = ../player/leiserchess
+depth = 6
