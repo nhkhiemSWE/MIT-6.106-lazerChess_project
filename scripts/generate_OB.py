@@ -87,8 +87,7 @@ def main():
     bin_path = sys.argv[1]
     depth = int(sys.argv[2])
     eng = Engine(bin_path)
-    # depth1= eng.generate_moves()
-    depth1= ['e1d2'] #, 'e1e2', 'e1f2', 'e1f1', 'e1d1', 'e1R', 'e1U', 'e1L', 'g1f2', 'g1g2', 'g1h2', 'g1h1', 'g1f1', 'g1R', 'g1U', 'g1L', 'h0g1', 'h0h1', 'h0g0', 'h0R', 'h1g2', 'h1h2', 'h1R', 'h1U', 'h1L']
+    depth1= eng.generate_moves()
     books = []
     print("// Copyright (c) 2022 MIT License by 6.172 / 6.106 Staff\n#ifndef LOOKUP_H\n#define LOOKUP_H\n")
     print(f"#define OPEN_BOOK_DEPTH {depth}\n")
