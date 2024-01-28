@@ -1,6 +1,7 @@
 INRODUCTION
 ===================================================================
 This is my final project of the class 6.106 - Software Performance for fall 2023 at MIT.
+
 The improvements include:
 * Redesigning the data-structure of the board representation and the transition table.
 * Revising the algorithm for nodes ordering during search process and the algorithm for shooting laser.
