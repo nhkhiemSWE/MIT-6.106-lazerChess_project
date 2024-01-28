@@ -89,8 +89,8 @@ const char* nesw_to_str[NUM_ORI] = {"north", "east", "south", "west"};
 // So if you change your piece representation, you'll need to recompute what the
 // old piece representation is when indexing into the zob table to get the same
 // node counts.
-
-static uint64_t zob[BOARD_SIZE][1 << PIECE_INDEX_SIZE];
+#define ZOB_ARR_SIZE (16*16)
+static uint64_t zob[ZOB_ARR_SIZE][1 << PIECE_INDEX_SIZE];
 static uint64_t zob_color;
 uint64_t myrand();
 
@@ -99,7 +99,7 @@ uint64_t compute_zob_key(position_t* p) {
   for (fil_t f = 0; f < BOARD_WIDTH; f++) {
     for (rnk_t r = 0; r < BOARD_WIDTH; r++) {
       square_t sq = square_of(f, r);
-      key ^= zob[sq][p->board[sq]];
+      key ^= zob[sq][(int) p->board[sq]];
     }
   }
   if (color_to_move_of(p) == BLACK) {
@@ -119,9 +119,9 @@ void update_piece_loc(position_t* p) {
       piece_t piece = p->board[sq];
       if (piece) {
         if (color_of(piece) == WHITE) {
-          key_white |= mailbox[sq];
+          key_white |= sq_to_bitmask[sq];
         } else {
-          key_black |= mailbox[sq];
+          key_black |= sq_to_bitmask[sq];
         }
       }
     }
@@ -319,7 +319,7 @@ int generate_all(position_t* p, sortable_move_t* sortable_move_list) {
 
       while (pieces) {
         uint64_t loc = pieces & (-pieces);//remove the least significant 1
-        square_t sq = mailbox64[__builtin_ctzll(loc)];
+        square_t sq = sq_to_bit_index[__builtin_ctzll(loc)];
         piece_t piece = p->board[sq];
         ptype_t typ = ptype_of(piece);
         // directions
@@ -423,14 +423,14 @@ static const uint64_t ray_in_file[8] = {0x00000000000000ff, 0x000000000000ff00, 
 square_t fire_laser(position_t* p, square_t sq) {
   if (ptype_of(p->board[sq]) == EMPTY || ptype_of(p->board[sq]) == INVALID)
     return 0;
-  // uint64_t shot = mailbox[sq];
+  // uint64_t shot = sq_to_bitmask[sq];
   uint64_t pieces = p->piece_loc[WHITE] | p->piece_loc[BLACK];
   int bdir = ori_of(p->board[sq]);
   tbassert(ptype_of(p->board[sq]) == MONARCH, "ptype: %d\n", ptype_of(p->board[sq]));
 
   while (true) {
     uint64_t ray;
-    uint64_t shot = mailbox[sq];
+    uint64_t shot = sq_to_bitmask[sq];
     if (bdir & 0b01) {
       //Shooting North or South
       ray = ray_in_rank[rnk_of(sq)];
@@ -453,10 +453,10 @@ square_t fire_laser(position_t* p, square_t sq) {
 
     if (bdir & 0b10) {
       //Shooting south or west, get the most-significant bit
-      sq = mailbox64[63 - __builtin_clzl(hit)] ;
+      sq = sq_to_bit_index[63 - __builtin_clzl(hit)] ;
     } else {
       //Shooting north or east, get the least-significant bit
-      sq = mailbox64[__builtin_ctzl(hit)];
+      sq = sq_to_bit_index[__builtin_ctzl(hit)];
     }
     tbassert(sq < ARR_SIZE && sq >= 0, "sq: %d\n", sq);
     piece_t piece = p->board[sq];
@@ -471,83 +471,6 @@ square_t fire_laser(position_t* p, square_t sq) {
   }
 }
 
-//Mark lasermap inclusively with the fired monarch and the shot victim (if any)
-// void mark_laser_map(position_t* p, color_t c, square_t sq) {
-//   uint64_t laser_map = 0;
-//   if (ptype_of(p->board[sq]) == EMPTY || ptype_of(p->board[sq]) == INVALID)
-//     return;
-//   // uint64_t shot = mailbox[sq];
-//   uint64_t pieces = p->piece_loc[WHITE] | p->piece_loc[BLACK];
-//   int bdir = ori_of(p->board[sq]);
-//   tbassert(ptype_of(p->board[sq]) == MONARCH, "ptype: %d\n", ptype_of(p->board[sq]));
-//   uint64_t shot = mailbox[sq];
-//   while (true) {
-//     uint64_t ray = 0;
-//     uint64_t tracer = 0;
-//     if (bdir & 0b01) {
-//       //Shooting North or South
-//       ray = ray_in_rank[rnk_of(sq)];
-//     } else {
-//       //Shooting West or East
-//       ray = ray_in_file[fil_of(sq)];
-//     }
-//     if (bdir & 0b10) {
-//       //Shooting in negative direction (towards lower files/ranks)
-//       ray &= ((shot-1));
-//     } else {
-//       //Shooting in positive direction (towards higher files/ranks)
-//       ray &= (-(shot*2));
-//     }
-    
-//     uint64_t hit = ray & pieces;
-//     if (hit == 0) {
-//       laser_map |= (ray | shot);
-//       p->laser_map[c] |= laser_map;
-//       return;
-//     }
-//     uint64_t tmp_sq = shot;
-//     if (bdir & 0b10) {
-//       //Shooting south or west, get the most-significant bit
-//       sq = mailbox64[63 - __builtin_clzl(hit)];
-//       shot = mailbox[sq];
-//       tracer = -(shot * 2);
-//     } else {
-//       //Shooting north or east, get the least-significant bit
-//       sq = mailbox64[__builtin_ctzl(hit)];
-//       shot = mailbox[sq];
-//       tracer = (shot - 1);
-//     }
-//     laser_map |= (((tracer & ray) | shot) | tmp_sq);
-
-//     tbassert(sq < ARR_SIZE && sq >= 0, "sq: %d\n", sq);
-//     piece_t piece = p->board[sq];
-//     if (ptype_of(piece) == PAWN) {
-//       bdir = reflect_of(bdir, ori_of(piece));
-//       if (bdir < 0) {
-//         p->laser_map[c] |= laser_map;
-//         return;
-//       }
-//     } else {
-//       p->laser_map[c] |= laser_map;
-//       return;
-//     }
-//   }
-// }
-
-// bool is_move_interfere(position_t* p, move_t mv) {
-//   if (mv.typ == MONARCH || move_eq(mv, NULL_MOVE)) {
-//     return true;
-//   }
-//   square_t from_sq = mv.from_sq;
-//   square_t to_sq = mv.to_sq;
-//   uint64_t laser_map = p->laser_map[WHITE] | p->laser_map[BLACK];
-//   if ((laser_map & mailbox[from_sq]) || (laser_map & mailbox[to_sq])) {
-//     return true;
-//   }
-//   square_t next_sq = to_sq + to_sq - from_sq;
-//   return ((ptype_of(p->board[next_sq]) == PAWN) && (laser_map & mailbox[next_sq]));
-// }
-
 // returns number of victims
 __attribute__((always_inline)) square_t fire_lasers(position_t* p, color_t c) {
   square_t sq = get_monarch(p, c, 0);
@@ -558,185 +481,6 @@ __attribute__((always_inline)) square_t fire_lasers(position_t* p, color_t c) {
   if (ptype_of(p->board[sq]) == MONARCH)
     if (fire_laser(p, sq)) victims++;
   return victims;
-}
-
-//make a move for laser coverage. mutates the board instead of copying
-//returns the piece that was stepped on
-void laser_coverage_make_move(position_t* pos, move_t mv, piece_t* previous_pieces) {
-  tbassert(!move_eq(mv, NULL_MOVE), "mv was zero.\n");
-
-  WHEN_DEBUG_VERBOSE(char buf[MAX_CHARS_IN_MOVE]);
-  WHEN_DEBUG_VERBOSE({
-    move_to_str(mv, buf, MAX_CHARS_IN_MOVE);
-    DEBUG_LOG(1, "low_level_make_move: %s\n", buf);
-  });
-
-  tbassert(pos->key == compute_zob_key(pos),
-           "old->key: %" PRIu64 ", zob-key: %" PRIu64 "\n", pos->key,
-           compute_zob_key(pos));
-
-  WHEN_DEBUG_VERBOSE({
-    fprintf(stderr, "Before:\n");
-    display(pos);
-  });
-
-  square_t from_sq = mv.from_sq;
-  square_t to_sq = mv.to_sq;
-  int dir = to_sq - from_sq;
-  square_t next_sq = from_sq + dir + dir;
-  rot_t rot = mv.rot;
-
-  WHEN_DEBUG_VERBOSE({
-    DEBUG_LOG(1, "low_level_make_move 2:\n");
-    square_to_str(from_sq, buf, MAX_CHARS_IN_MOVE);
-    DEBUG_LOG(1, "from_sq: %s\n", buf);
-    square_to_str(to_sq, buf, MAX_CHARS_IN_MOVE);
-    DEBUG_LOG(1, "to_sq: %s\n", buf);
-    square_to_str(next_sq, buf, MAX_CHARS_IN_MOVE);
-    DEBUG_LOG(1, "next_sq: %s\n", buf);
-    switch (rot) {
-      case NONE:
-        DEBUG_LOG(1, "rot: none\n");
-        break;
-      case RIGHT:
-        DEBUG_LOG(1, "rot: R\n");
-        break;
-      case UTURN:
-        DEBUG_LOG(1, "rot: U\n");
-        break;
-      case LEFT:
-        DEBUG_LOG(1, "rot: L\n");
-        break;
-      default:
-        tbassert(false, "Not like a boss at all.\n");  // Bad, bad, bad
-        break;
-    }
-  });
-
-  tbassert(from_sq < ARR_SIZE && from_sq > 0, "from_sq: %d\n", from_sq);
-  tbassert((pos->board[from_sq]) < (1 << PIECE_INDEX_SIZE) &&
-               (pos->board[from_sq]) >= 0,
-           "p->board[from_sq]: %d\n", (pos->board[from_sq]));
-  tbassert(to_sq < ARR_SIZE && to_sq > 0, "to_sq: %d\n", to_sq);
-  tbassert((pos->board[to_sq]) < (1 << PIECE_INDEX_SIZE) &&
-               (pos->board[to_sq]) >= 0,
-           "p->board[to_sq]: %d\n", (pos->board[to_sq]));
-
-  piece_t from_piece = pos->board[from_sq];
-  piece_t to_piece = pos->board[to_sq];
-  piece_t next_piece = pos->board[next_sq];
-
-  previous_pieces[0] = from_piece;
-  previous_pieces[1] = to_piece;
-  previous_pieces[2] = next_piece;
-
-  if (to_sq != from_sq) {
-    pos->board[from_sq] = NULL_PIECE;
-    pos->board[to_sq] = from_piece;
-
-    color_t from_color = color_of(from_piece);
-
-    int monarch_ptr = 0;
-    if (ptype_of(from_piece) == MONARCH) {
-      if (pos->monarch_loc[from_color][monarch_ptr] == from_sq) {
-        pos->monarch_loc[from_color][monarch_ptr] = 0;
-      } else {
-        monarch_ptr = 1;
-        pos->monarch_loc[from_color][monarch_ptr] = 0;
-      }
-      pos->monarch_loc[from_color][monarch_ptr] = to_sq;
-    }
-    
-    if (ptype_of(next_piece) == EMPTY) {
-      
-      pos->board[next_sq] = to_piece;
-    } 
-
-  } else {
-    set_ori(&from_piece, (uint8_t)((rot + ori_of(from_piece)) % NUM_ORI));
-    pos->board[from_sq] = from_piece;
-  }
-}
-
-void laser_coverage_unmake_move(position_t *pos, move_t mv, piece_t *previous_pieces) {
-  tbassert(!move_eq(mv, NULL_MOVE), "mv was zero.\n");
-
-  WHEN_DEBUG_VERBOSE(char buf[MAX_CHARS_IN_MOVE]);
-  WHEN_DEBUG_VERBOSE({
-    move_to_str(mv, buf, MAX_CHARS_IN_MOVE);
-    DEBUG_LOG(1, "low_level_make_move: %s\n", buf);
-  });
-
-  
-  WHEN_DEBUG_VERBOSE({
-    fprintf(stderr, "Before:\n");
-    display(pos);
-  });
-
-  square_t from_sq = mv.from_sq;
-  square_t to_sq = mv.to_sq;
-  int dir = to_sq - from_sq;
-  square_t next_sq = from_sq + dir + dir;
-
-
-  WHEN_DEBUG_VERBOSE({
-    DEBUG_LOG(1, "low_level_make_move 2:\n");
-    square_to_str(from_sq, buf, MAX_CHARS_IN_MOVE);
-    DEBUG_LOG(1, "from_sq: %s\n", buf);
-    square_to_str(to_sq, buf, MAX_CHARS_IN_MOVE);
-    DEBUG_LOG(1, "to_sq: %s\n", buf);
-    square_to_str(next_sq, buf, MAX_CHARS_IN_MOVE);
-    DEBUG_LOG(1, "next_sq: %s\n", buf);
-    switch (rot) {
-      case NONE:
-        DEBUG_LOG(1, "rot: none\n");
-        break;
-      case RIGHT:
-        DEBUG_LOG(1, "rot: R\n");
-        break;
-      case UTURN:
-        DEBUG_LOG(1, "rot: U\n");
-        break;
-      case LEFT:
-        DEBUG_LOG(1, "rot: L\n");
-        break;
-      default:
-        tbassert(false, "Not like a boss at all.\n");  // Bad, bad, bad
-        break;
-    }
-  });
-
-  tbassert(from_sq < ARR_SIZE && from_sq > 0, "from_sq: %d\n", from_sq);
-  tbassert((pos->board[from_sq]) < (1 << PIECE_INDEX_SIZE) &&
-               (pos->board[from_sq]) >= 0,
-           "p->board[from_sq]: %d\n", (pos->board[from_sq]));
-  tbassert(to_sq < ARR_SIZE && to_sq > 0, "to_sq: %d\n", to_sq);
-  tbassert((pos->board[to_sq]) < (1 << PIECE_INDEX_SIZE) &&
-               (pos->board[to_sq]) >= 0,
-           "p->board[to_sq]: %d\n", (pos->board[to_sq]));
-
-  pos->board[from_sq] = previous_pieces[0];
-  pos->board[to_sq] = previous_pieces[1];
-  pos->board[next_sq] = previous_pieces[2];
-
-  if (to_sq != from_sq) {
-    
-    if (ptype_of(previous_pieces[0]) == MONARCH) {
-      int monarch_ptr = 0;
-      color_t monarch_color = color_of(previous_pieces[0]);
-      if (pos->monarch_loc[monarch_color][monarch_ptr] == to_sq) {
-        pos->monarch_loc[monarch_color][monarch_ptr] = 0;
-      } else {
-        monarch_ptr = 1;
-        pos->monarch_loc[monarch_color][monarch_ptr] = 0;
-      }
-      pos->monarch_loc[monarch_color][monarch_ptr] = from_sq;
-    }
-    
-  }
-  tbassert(pos->key == compute_zob_key(pos),
-           "old->key: %" PRIu64 ", zob-key: %" PRIu64 "\n", pos->key,
-           compute_zob_key(pos));
 }
 
 void low_level_make_move(position_t* old, position_t* p, move_t mv) {
@@ -791,7 +535,6 @@ void low_level_make_move(position_t* old, position_t* p, move_t mv) {
   });
 
   *p = *old;
-  //COPYING...
   p->history = old;
   p->last_move = mv;
 
@@ -824,8 +567,8 @@ void low_level_make_move(position_t* old, position_t* p, move_t mv) {
     
     // UPDATE:piece_loc
     // First, remove the from_piece and to_piece
-    p->piece_loc[from_color] &= (~mailbox[from_sq]); //CLEAR
-    p->piece_loc[to_color]  &= (~mailbox[to_sq]);
+    p->piece_loc[from_color] &= (~sq_to_bitmask[from_sq]); //CLEAR
+    p->piece_loc[to_color]  &= (~sq_to_bitmask[to_sq]);
 
     int monarch_ptr = 0;
     if (ptype_of(from_piece) == MONARCH) {
@@ -846,9 +589,9 @@ void low_level_make_move(position_t* old, position_t* p, move_t mv) {
       p->key ^= zob[next_sq][(next_piece)];
       p->key ^= zob[next_sq][(to_piece)];
       // CASE 1: next_sq is empty
-      p->piece_loc[from_color] |= mailbox[to_sq]; //ADD
+      p->piece_loc[from_color] |= sq_to_bitmask[to_sq]; //ADD
       if (ptype_of(to_piece) == PAWN || ptype_of(to_piece) == MONARCH) {
-        p->piece_loc[to_color] |= mailbox[next_sq]; //ADD
+        p->piece_loc[to_color] |= sq_to_bitmask[next_sq]; //ADD
       }
 
     } else {
@@ -856,7 +599,7 @@ void low_level_make_move(position_t* old, position_t* p, move_t mv) {
       p->board[to_sq] = from_piece;
       p->key ^= zob[to_sq][(from_piece)];
       //CASE 2: next_sq is off board or occupied
-      p->piece_loc[from_color] |= mailbox[to_sq];
+      p->piece_loc[from_color] |= sq_to_bitmask[to_sq];
     }
 
   } else {  // rotation
@@ -917,39 +660,6 @@ bool do_pawns_touch(pawn_ori_t ori_p1, pawn_ori_t ori_p2, compass_t dir) {
 // Victims update
 // -----------------------------------------------------------------------------
 
-//Given a position p, remove the piece at square sq and update it to the position key
-void update_victim(position_t* p, square_t sq) {
-  piece_t piece = p->board[sq];
-  WHEN_DEBUG_VERBOSE({
-    fprintf(stdout, "Before:\n");
-    display(p);
-  });
-  // remove victim
-  tbassert(sq > 0 && sq < ARR_WIDTH * ARR_WIDTH, "Bad square! %d\n", sq);
-  // p->victims.removed[p->victims.count++] = piece;
-  p->key ^= zob[sq][piece];
-  p->board[sq] = NULL_PIECE;
-  p->key ^= zob[sq][0];
-  color_t c = color_of(piece);
-  p->piece_loc[c] &= (~mailbox[sq]); //CLEAR
-  
-  if (ptype_of(piece) == MONARCH) {
-    if (p->monarch_loc[c][0] == sq) {
-      p->monarch_loc[c][0] = 0;
-    } else {
-      p-> monarch_loc[c][1] = 0;
-    }
-  }
-
-  tbassert(p->key == compute_zob_key(p),
-           "p->key: %" PRIu64 ", zob-key: %" PRIu64 "\n", p->key,
-           compute_zob_key(p));
-  WHEN_DEBUG_VERBOSE({
-    fprintf(stdout, "After:\n");
-    display(p);
-  });
-}
-
 // returns victim pieces (does not mark position as actually played)
 victims_t make_move(position_t* old, position_t* p, move_t mv) {
   tbassert(!move_eq(mv, NULL_MOVE), "mv was zero.\n");
@@ -958,9 +668,6 @@ victims_t make_move(position_t* old, position_t* p, move_t mv) {
 
   // move phase 1 - moving a piece
   low_level_make_move(old, p, mv);
-  // uint64_t laser_map = old->laser_map[WHITE] | old->laser_map[BLACK];
-
-  // move phase 2 - shooting the laser (s)
   p->victims.count = 0;
   p->victims.removed_color[WHITE] = false;
   p->victims.removed_color[BLACK] = false;
@@ -972,8 +679,6 @@ victims_t make_move(position_t* old, position_t* p, move_t mv) {
   victim_sq1 = fire_laser(p, monarch_0);
   victim_sq2 = fire_laser(p, monarch_1);
 
-  // uint64_t victims = mailbox[victim_sq1] | mailbox[victim_sq2];
-  //ADDING Cilk_scope and Cilk_spawn with no race here!!!!
   if (victim_sq1) {
     WHEN_DEBUG_VERBOSE({
       square_to_str(victim_sq, buf, MAX_CHARS_IN_MOVE);
@@ -991,7 +696,7 @@ victims_t make_move(position_t* old, position_t* p, move_t mv) {
       p->board[victim_sq1] = NULL_PIECE;
       p->key ^= zob[victim_sq1][0];
       color_t c = color_of(piece);
-      p->piece_loc[c] &= (~mailbox[victim_sq1]); //CLEAR
+      p->piece_loc[c] &= (~sq_to_bitmask[victim_sq1]); //CLEAR
       
       if (ptype_of(piece) == MONARCH) {
         if (p->monarch_loc[c][0] == victim_sq1) {
@@ -1027,7 +732,7 @@ victims_t make_move(position_t* old, position_t* p, move_t mv) {
     p->board[victim_sq2] = NULL_PIECE;
     p->key ^= zob[victim_sq2][0];
     color_t c = color_of(piece);
-    p->piece_loc[c] &= (~mailbox[victim_sq2]); //CLEAR
+    p->piece_loc[c] &= (~sq_to_bitmask[victim_sq2]); //CLEAR
     
     if (ptype_of(piece) == MONARCH) {
       if (p->monarch_loc[c][0] == victim_sq2) {
@@ -1051,14 +756,12 @@ victims_t make_move(position_t* old, position_t* p, move_t mv) {
 
   piece_t to_piece = old->board[mv.to_sq];
   if (ptype_of(to_piece) == PAWN) {
-    // Check if we squashed the piece at mv.to_sq: is the cell it's pushed to
-    // empty?
+    // Check if we squashed the piece at mv.to_sq: is the cell it's pushed to empty?
     int dir = mv.to_sq - mv.from_sq;
     square_t pushed_next_sq = mv.to_sq + dir;
     if (mv.to_sq != mv.from_sq && ptype_of(old->board[pushed_next_sq]) != EMPTY) {
       p->victims.count++;
       p->victims.removed_color[color_of(to_piece)] = true;
-      // victims |= mailbox[to_piece];
     }
   }
 
@@ -1071,21 +774,6 @@ victims_t make_move(position_t* old, position_t* p, move_t mv) {
   }
   // mark position as not played (yet)
   p->was_played = false;
-
-  //Will add a check condition later
-  // if (is_move_interfere(old, mv) || (laser_map & victims)) {
-  //   p->laser_map[WHITE] = 0;
-  //   p->laser_map[BLACK] = 0;
-  //   #pragma clang loop unroll(full)
-  //   for (int c = 0; c < 2; c ++) {
-  //     for (int m = 0; m < MAX_MONARCHS; m ++) {
-  //       if (p->monarch_loc[c][m] > 0) {
-  //         mark_laser_map(p, c, p->monarch_loc[c][m]);
-  //       }
-  //     }
-  //   }
-  // }
-
   return p->victims;
 }
 
@@ -1223,11 +911,11 @@ void bitboardDisplay(position_t* p) {
       printf("\ninfo %1d ", r);
       for (fil_t f = 0; f < BOARD_WIDTH; ++f) {
         square_t sq = square_of(f, r);
-        if (p->piece_loc[WHITE] & (mailbox[sq])) {
+        if (p->piece_loc[WHITE] & (sq_to_bitmask[sq])) {
           printf("  0");
         }
 
-        else if (p->piece_loc[BLACK] & (mailbox[sq])) {
+        else if (p->piece_loc[BLACK] & (sq_to_bitmask[sq])) {
           printf("  1");
         }
 
@@ -1245,51 +933,6 @@ void bitboardDisplay(position_t* p) {
     printf("DoneDisplay\n");  // DO NOT DELETE THIS LINE!!! It is needed for the
                               // autotester.
     printf("\n");
-}
-
-void laserMapDisplay(position_t* p) {
-  // char buf[MAX_CHARS_IN_MOVE];
-
-    printf("info Ply: %d\n", p->ply);
-  //   printf("info Color to move: %s\n", color_to_str(color_to_move_of(p)));
-  //   square_to_str(get_monarch(p, WHITE, 0), buf, MAX_CHARS_IN_MOVE);
-  //   printf("info White Monarch: %s\n", buf);
-  //   square_to_str(get_monarch(p, WHITE, 1), buf, MAX_CHARS_IN_MOVE);
-  //   printf("info White Monarch: %s\n", buf);
-  //   square_to_str(get_monarch(p, BLACK, 0), buf, MAX_CHARS_IN_MOVE);
-  //   printf("info Black Monarch: %s\n", buf);
-  //   square_to_str(get_monarch(p, BLACK, 1), buf, MAX_CHARS_IN_MOVE);
-  //   printf("info Black Monarch: %s\n", buf);
-  //   printf("info");
-
-  //   for (rnk_t r = BOARD_WIDTH - 1; r >= 0; --r) {
-  //     printf("\ninfo %1d ", r);
-  //     for (fil_t f = 0; f < BOARD_WIDTH; ++f) {
-  //       square_t sq = square_of(f, r);
-  //       if (p->laser_map[WHITE] & (mailbox[sq])) {
-  //         if (p->laser_map[BLACK] & (mailbox[sq])) {
-  //           printf(" 10");
-  //         } else {
-  //           printf(" -0");
-  //         }
-  //       }
-  //       else if (p->laser_map[BLACK] & (mailbox[sq])) {
-  //         printf(" -1");
-  //       }
-  //       else {
-  //         printf(" --");
-  //       }
-  //     }
-  //   }
-  //   printf("\ninfo    ");
-  //   for (fil_t f = 0; f < BOARD_WIDTH; ++f) {
-  //     printf(" %c ", 'a' + f);
-  //   }
-  //   printf("\n");
-  //   printf("DoneDisplay\n");  // DO NOT DELETE THIS LINE!!! It is needed for the
-  //                             // autotester.
-    printf("\n");
-
 }
 
 // -----------------------------------------------------------------------------

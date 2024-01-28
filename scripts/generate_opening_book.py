@@ -76,7 +76,6 @@ def main():
             if history not in seen:
                 seen[history] = 1
                 print(f'"{history}", "{best_move}"', end = ",\n")
-            #print(f'"{history}", "{best_move}"', end = ",\n")
         print("};")
 
 

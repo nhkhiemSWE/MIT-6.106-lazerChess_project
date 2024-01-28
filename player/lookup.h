@@ -37,7 +37,7 @@ const char* lookup_table_depth_3[] = {"b1a2a6U", "a0b1", "b1b2a7b6", "a0a1", "b1
                                       "a1b2a6U", "a0b1", "a1Ra7L", "a0a1", "a1Ua7b7", "a0U", "a1La7a6", "a1a2",
                                       "h1g2h6U", "h0g1", "h1Lh7R", "h0h1", "h1Uh7g7", "h0U", "h1Rh7h6", "h1h2",
                                       "a0b1h7g6", "h0R", "h0g1a7a6", "a0L", "a1b2h7g6", "a0U", "h1g2a7b6", "h0U",
-                                      "h0h1a6b5", "h1R", "a0a1h6g5", "a1L", "h0La7b6", "h1g2", "a0Rh7h6", "a1b2"
+                                      "h0h1a6b5", "h1R", "a0a1h6g5", "a1L", "h0La7b6", "h1g2", "a0Rh7h6", "a1b2",
                                       "a1Ua7b6", "a0U"};
 
 const char* lookup_table_depth_4[]= {"a0b1h7g6a0R", "a7R"};

@@ -82,7 +82,7 @@ static int_options iopts[] = {
      DEFAULT_MAX},
     {"absqi", &ABSQI_weight, (int)(0.0106 * P_EV_VAL), DEFAULT_MIN,
      DEFAULT_MAX},
-    {"hash", &HASH, 1040, 1, MAX_HASH},
+    {"hash", &HASH, 300, 1, MAX_HASH},
     {"draw", &DRAW, (int)(-0.0016 * PAWN_VALUE), -PAWN_VALUE, PAWN_VALUE},
     {"randomize", &RANDOMIZE, 0, 0, P_EV_VAL},
     {"reset_rng", &RESET_RNG, 0, 0, 1},
@@ -94,7 +94,7 @@ static int_options iopts[] = {
     {"use_nmm", &USE_NMM, 1, 0, 1},
     {"detect_draws", &DETECT_DRAWS, 1, 0, 1},
     {"use_tt", &USE_TT, 1, 0, 1},
-    {"use_ob", &USE_OB, 1, 0, 1},
+    {"use_ob", &USE_OB, 0, 0, 1},
     {"trace_moves", &TRACE_MOVES, 0, 0, 1},
     {"nmoves_draw", &NMOVES_DRAW, 100, 1, 1000 * 1000},
     {"", NULL, 0, 0, 0}};

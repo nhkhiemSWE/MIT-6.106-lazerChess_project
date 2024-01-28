@@ -2,14 +2,13 @@
 #ifndef LOOKUP_H
 #define LOOKUP_H
 
-#define OPEN_BOOK_DEPTH 3
+#define OPEN_BOOK_DEPTH 2
 
-int lookup_sizes[OPEN_BOOK_DEPTH] = {ADJUST LATER
+int lookup_sizes[OPEN_BOOK_DEPTH] = {1, 1, };
+
+const char* lookup_table_depth_2[] = { "e1d2", "h7h6",
 };
-
-entering thread
-entering thread
-['a0a1 h7g6 h0R']
-done
-['a0a1 h7g6 h0R']
-done
+const char** lookup_tables[OPEN_BOOK_DEPTH] = {
+lookup_table_depth_2,
+};
+#endif  // LOOKUP_H

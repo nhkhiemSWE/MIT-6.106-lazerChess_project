@@ -156,8 +156,43 @@ const char* try_lookup_table(position_t* p) {
   return best_move;
 }
 
+#define NUM_PARALLEL 128
+#ifdef PARALLEL
+int ncores=0;
+#endif
+
+typedef struct {
+  uint64_t node_count_serial;
+  char padding[64];
+} node_count_with_padding;
+node_count_with_padding node_count_serial_all[NUM_PARALLEL];
+
+typedef struct {
+  move_t killer __KMT_dim__;
+  char padding[64];
+} killer_with_padding;
+killer_with_padding killer_all[NUM_PARALLEL];
+
+typedef struct {
+  int best_move_history __BMH_dim__;
+  char padding[64];
+} best_move_with_padding;
+best_move_with_padding best_move_history_all[NUM_PARALLEL];
+
+typedef struct {
+  sortable_move_t move_list[MAX_NUM_MOVES];
+  char padding[64];
+} move_list_with_padding;
+move_list_with_padding move_list_all[NUM_PARALLEL];
+
 void entry_point(entry_point_args* args, entry_point_ret* ret) {
-  move_t subpv[MAX_PLY_IN_SEARCH];
+  bestMove subpv[MAX_PLY_IN_SEARCH];
+  for (int i = 0; i < MAX_PLY_IN_SEARCH; ++i) {
+    subpv[i].score = -INF;
+    subpv[i].move = NULL_MOVE;
+    subpv[i].has_been_set = false;
+    subpv[i].mutex = 0;
+  }
 
   int depth = args->depth;
   position_t* p = args->p;
@@ -168,7 +203,7 @@ void entry_point(entry_point_args* args, entry_point_ret* ret) {
   // start time of search
   init_abort_timer(tme);
 
-  init_best_move_history();
+  // init_best_move_history();
   tt_age_hashtable();
 
   init_tics();
@@ -181,8 +216,12 @@ void entry_point(entry_point_args* args, entry_point_ret* ret) {
     // A best move from the lookup table was found. Return immediately!
     if (lookup_best_move) {
       ret->lookup_best_move = lookup_best_move;
-      return;
+      // return;
     }
+  }
+
+  for (int i = 0; i< NUM_PARALLEL; i ++) {
+    node_count_serial_all[i].node_count_serial = 0;
   }
 
   // Iterative deepening
@@ -190,10 +229,26 @@ void entry_point(entry_point_args* args, entry_point_ret* ret) {
     reset_abort();
 
     // Unleash wrath!
-    searchRoot(p, -INF, INF, d, 0, subpv, &node_count_serial, OUT);
+    #ifdef PARALLEL
+      cilk_for (int i = 0; i< ncores; i ++) {
+        searchRoot(p, -INF, INF, d, 0, subpv, &node_count_serial_all[i].node_count_serial, OUT, i, 
+                    move_list_all[i].move_list, killer_all[i].killer, best_move_history_all[i].best_move_history);
+      }
+    #else
+      for (int i = 0; i< 1; i ++) {
+        searchRoot(p, -INF, INF, d, 0, subpv, &node_count_serial_all[i].node_count_serial, OUT, i, 
+                    move_list_all[i].move_list, killer_all[i].killer, best_move_history_all[i].best_move_history);
+      }
+    #endif
+
+    // searchRoot(p, -INF, INF, d, 0, subpv, &node_count_serial, OUT);
 
     et = elapsed_time();
-    bestMoveSoFar = subpv[0];
+    for (int i = 0; i < MAX_PLY_IN_SEARCH; i ++) {
+      if (subpv[i].has_been_set) {
+        bestMoveSoFar = subpv[i].move;
+      }
+    }
 
     if (!should_abort()) {
       // print something?
@@ -500,6 +555,13 @@ void print_options() {
 // agent using UCI to communicate with this bot.
 
 int main(int argc, char* argv[]) {
+  #ifdef PARALLEL
+    ncores = __cilkrts_get_nworkers();
+    if (ncores > NUM_PARALLEL) {
+      ncores = NUM_PARALLEL;
+    }
+  #endif
+
   position_t* gme = (position_t*)malloc(sizeof(position_t) * MAX_PLY_IN_GAME);
 
   setbuf(stdout, NULL);
@@ -573,10 +635,10 @@ int main(int argc, char* argv[]) {
         continue;
       }
 
-      if (strcmp(tok[0], "lasermap") == 0) {
-        laserMapDisplay(&gme[ix]);
-        continue;
-      }
+      // if (strcmp(tok[0], "lasermap") == 0) {
+      //   laserMapDisplay(&gme[ix]);
+      //   continue;
+      // }
 
       if (strcmp(tok[0], "next") == 0) {
         if (token_count > 2) {
@@ -672,6 +734,12 @@ int main(int argc, char* argv[]) {
 
       if (strcmp(tok[0], "reset") == 0) {
         fprintf(OUT, "*****************************************************\n");
+        continue;
+      }
+
+      if (strcmp(tok[0], "key") == 0){
+        fprintf(OUT, "position->key: %" PRIu64 ", computed-key: %" PRIu64 "\n", (&gme[ix])->key,
+           compute_zob_key(&gme[ix]));
         continue;
       }
 

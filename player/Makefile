@@ -13,7 +13,7 @@ endif
 
 TARGET := leiserchess
 
-SRC := leiserchess.c util.c tt.c fen.c move_gen.c search.c eval.c end_game.c
+SRC := leiserchess.c util.c tt.c fen.c move_gen.c search.c eval.c end_game.c simple_mutex.c
 OBJ := $(SRC:.c=.o)
 DEP := $(OBJ:%.o=%.d)
 
@@ -22,7 +22,7 @@ LOCAL := 0
 DEBUG := 0
 FLTO := 0
 
-COMMONFLAGS := -Wall -Werror -Wextra
+COMMONFLAGS := -Wall -Werror -Wextra -ffast-math
 CFLAGS := $(COMMONFLAGS) -std=gnu99 -g -flto
 # LDFLAGS := $(COMMONFLAGS) -fuse-ld=lld -lm -ldl
 LDFLAGS := $(COMMONFLAGS) -pthread -lm -ldl -flto
@@ -41,10 +41,10 @@ endif
 # for Cilksan and Cilkscale
 ifeq ($(CILKSAN),1)
 	CFLAGS += -fsanitize=cilk
-	LDFLAGS += -fsanitize=cilk
+	LDFLAGS := $(COMMONFLAGS) -fuse-ld=lld -pthread --gcc-install-dir=/usr/lib/gcc/x86_64-linux-gnu/7 -fopencilk -fsanitize=cilk -ldl -lm
 else ifeq ($(CILKSCALE),1)
 	CFLAGS += -fcilktool=cilkscale
-	LDFLAGS += -fcilktool=cilkscale
+	LDFLAGS := $(COMMONFLAGS) -fuse-ld=lld -pthread --gcc-install-dir=/usr/lib/gcc/x86_64-linux-gnu/7 -fopencilk -fcilktool=cilkscale -ldl -lm
 endif
 
 ifeq ($(DEBUG),1)

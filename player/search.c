@@ -67,32 +67,32 @@ static score_t scout_search(searchNode* node, int depth,
                             uint64_t* node_count_serial);
 
 // From search_globals.c
-static move_t killer[];
-static int best_move_history[];
+// static move_t killer[];
+// static int best_move_history[];
 static void update_transposition_table(searchNode* node);
 
 static void update_best_move_history(position_t* p, int index_of_best,
-                                     sortable_move_t* lst, int count);
+                                     sortable_move_t* lst, int count, int* best_move_history);
+static void finish_search(uint64_t pos_hash, move_t mv);
+static bool is_move_searching(uint64_t pos_hash, move_t mv);
+static void set_search_move(uint64_t pos_hash, move_t mv);
 
 // From search_common.c
 static score_t get_draw_score(position_t* p, int ply);
-static void getPV(move_t* pv, char* buf, size_t bufsize);
+static void getPV(bestMove* pv, char* buf, size_t bufsize);
 static void print_move_info(move_t mv, int ply, position_t* pos);
 static leafEvalResult evaluate_as_leaf(searchNode* node, searchType_t type);
 static moveEvaluationResult evaluateMove(searchNode* node, move_t mv,
                                          move_t killer_a, move_t killer_b,
                                          searchType_t type,
                                          uint64_t* node_count_serial);
+static void sort_insertion(sortable_move_t* move_list, int num_of_moves);
 static bool search_process_score(searchNode* node, move_t mv, int mv_index,
                                  moveEvaluationResult* result,
                                  searchType_t type);
-static bool should_abort_check();                              
-static uint8_t get_move_list_and_process_best(searchNode* node,
-                                          sortable_move_t* move_list,
-                                          int num_of_moves,
-                                          sortable_move_t* sorted_moves,
-                                          move_t hash_table_move);
-static int process_move_list_after_best(searchNode* node, sortable_move_t* move_list, move_t hash_table_move, int num_of_moves);
+static bool should_abort_check();
+static int get_sortable_move_list(searchNode* node, sortable_move_t* move_list, move_t hash_table_move);
+static int get_sortable_move_list_partial(searchNode* node, sortable_move_t* move_list, move_t hash_table_move);
 // Include common search functions
 #include "./search_common.c"
 #include "./search_globals.c"
@@ -116,6 +116,8 @@ static void initialize_pv_node(searchNode* node, int depth) {
   node->best_move_index = 0;
   node->best_score = -INF;
   node->abort = false;
+  node->killer = node->parent->killer;
+  node->best_move_history = node->parent->best_move_history;
 }
 
 // Perform a Principal Variation Search
@@ -135,6 +137,7 @@ static score_t searchPV(searchNode* node, int depth,
   if (pre_evaluation_result.type == MOVE_EVALUATED) {
     return pre_evaluation_result.score;
   }
+
   if (pre_evaluation_result.score > node->best_score) {
     node->best_score = pre_evaluation_result.score;
     if (node->best_score > node->alpha) {
@@ -143,8 +146,8 @@ static score_t searchPV(searchNode* node, int depth,
   }
 
   // Get the killer moves at this node.
-  move_t killer_a = killer[KMT(node->ply, 0)];
-  move_t killer_b = killer[KMT(node->ply, 1)];
+  move_t killer_a = node->killer[KMT(node->ply, 0)];
+  move_t killer_b = node->killer[KMT(node->ply, 1)];
 
   // sortable_move_t move_list
   //
@@ -164,101 +167,74 @@ static score_t searchPV(searchNode* node, int depth,
   //  This will allow us to update the best_move_history table easily by
   //  scanning move_list from index 0 to k such that we update the table
   //  only for moves that we actually considered at this node.
-  // sortable_move_t move_list[MAX_NUM_MOVES];
-  // int num_of_moves = get_sortable_move_list(node, move_list, hash_table_move);
-  sortable_move_t move_heap[MAX_NUM_MOVES];
-  // int num_of_moves = get_sortable_move_list(node, move_heap, hash_table_move);
-  int num_of_moves = generate_all(&(node->position), move_heap);
 
-  sortable_move_t sorted_moves[num_of_moves];
-
-  int num_best = get_move_list_and_process_best(node, move_heap, num_of_moves,
-                                                sorted_moves, hash_table_move);
-
+  sortable_move_t move_list_with_sentinel[MAX_NUM_MOVES];
+  move_list_with_sentinel[0].key = MAX_SORT_KEY;
+  sortable_move_t* move_list = move_list_with_sentinel + 1;
+  int num_of_moves = get_sortable_move_list(node, move_list, hash_table_move);
   int num_moves_tried = 0;
 
-  for (int i = 0; i < num_best; i++) {
-    move_t mv = sorted_moves[i].mv;
+  // Insertion sort the move list
+  sort_insertion(move_list_with_sentinel, num_of_moves + 1);
 
-    num_moves_tried++;
-    (*node_count_serial)++; 
+  // Start searching moves
+  sortable_move_t deferred[MAX_NUM_MOVES];
+  sortable_move_t tried[MAX_NUM_MOVES];
+  int deferred_count = 0;
+  bool isFirst = true;
+  sortable_move_t* moves = move_list;
 
-    if (TRACE_MOVES) {
-      print_move_info(mv, node->ply, &node->position);
+  for (int abd_pass = 0; abd_pass <2; abd_pass++) {
+    int move_count = (abd_pass == 0) ? num_of_moves : deferred_count;
+    for (int mv_index = 0; mv_index < move_count; mv_index++) {
+      move_t mv = get_move(moves[mv_index]);
+      if (abd_pass == 0 && is_move_searching(node->position.key, mv) && !isFirst) {
+        deferred[deferred_count++].mv =mv;
+        isFirst = false;
+        continue;
+      }
+      tried[num_moves_tried++].mv = mv;
+      set_search_move(node->position.key, mv);
+      isFirst = false;
+
+      (*node_count_serial) ++;
+
+      if (TRACE_MOVES) {
+        print_move_info(mv, node->ply, &node->position);
+      }
+
+      // printf("calling from searchPV \n");
+      moveEvaluationResult result = evaluateMove(node, mv, killer_a, killer_b,
+                                                SEARCH_PV, node_count_serial);
+      finish_search(node->position.key, mv);
+
+      if (result.type == MOVE_ILLEGAL || result.type == MOVE_IGNORE) {
+        continue;
+      }
+
+      // A legal move, but when we are in quiescence
+      // we only want to count moves that has a capture.
+      if (result.type == MOVE_EVALUATED) {
+        node->legal_move_count++;
+      }
+
+      // Check if we should abort due to time control.
+      if (abortf) {
+        return 0;
+      }
+
+      bool cutoff = search_process_score(node, mv, mv_index, &result, SEARCH_PV);
+      if (cutoff) {
+        break;
+      }
     }
-
-    moveEvaluationResult result = evaluateMove(node, mv, killer_a, killer_b,
-                                               SEARCH_PV, node_count_serial);
-
-    if (result.type == MOVE_ILLEGAL || result.type == MOVE_IGNORE) {
-      continue;
-    }
-
-    if (result.type == MOVE_EVALUATED) {
-      node->legal_move_count++;
-    }
-
-    if (abortf) {
-      return 0;
-    }
-
-    bool cutoff = search_process_score(node, mv, i, &result, SEARCH_PV);
-    if (cutoff) {
-      goto aftersorting;
-    }
+    moves  = deferred;
   }
-
-  int num_zeros = process_move_list_after_best(node, move_heap, hash_table_move, num_of_moves);
-
-  buildMaxHeap(move_heap, num_of_moves - num_zeros);
-
-  for (int i = 0; i < num_best; i++) {
-
-    move_heap[0] = move_heap[num_of_moves - i - 1];
-    heapify(move_heap, 0, num_of_moves - i - 1);
-  }
-
-  // Start searching moves.
-  // for (int mv_index = 0; mv_index < num_of_moves; mv_index++) {
-  for (int mv_index = num_best; mv_index < num_of_moves; mv_index++) {
-    // Insertion sort the move list.
-
-    move_t mv = get_move_from_heap(move_heap, sorted_moves, mv_index, num_of_moves);
-    num_moves_tried++;
-    (*node_count_serial)++;
-
-    if (TRACE_MOVES) {
-      print_move_info(mv, node->ply, &node->position);
-    }
-    moveEvaluationResult result = evaluateMove(node, mv, killer_a, killer_b,
-                                               SEARCH_PV, node_count_serial);
-
-    if (result.type == MOVE_ILLEGAL || result.type == MOVE_IGNORE) {
-      continue;
-    }
-
-    // A legal move, but when we are in quiescence
-    // we only want to count moves that has a capture.
-    if (result.type == MOVE_EVALUATED) {
-      node->legal_move_count++;
-    }
-
-    // Check if we should abort due to time control.
-    if (abortf) {
-      return 0;
-    }
-
-    bool cutoff = search_process_score(node, mv, mv_index, &result, SEARCH_PV);
-    if (cutoff) {
-      break;
-    }
-  }
-  aftersorting:
 
   if (node->quiescence == false) {
     update_best_move_history(&(node->position), node->best_move_index,
                             //  move_list, num_moves_tried);
-                            sorted_moves, num_moves_tried);
+                            tried, num_moves_tried, node->best_move_history);
   }
 
   tbassert(abs(node->best_score) != -INF, "best_score = %d\n",
@@ -279,7 +255,7 @@ static score_t searchPV(searchNode* node, int depth,
 // This handles scout search logic for the first level of the search tree
 // -----------------------------------------------------------------------------
 static void initialize_root_node(searchNode* node, score_t alpha, score_t beta,
-                                 int depth, int ply, position_t* p) {
+                                 int depth, int ply, position_t* p, move_t* killer, int* best_move_history) {
   node->type = SEARCH_ROOT;
   node->alpha = alpha;
   node->beta = beta;
@@ -291,14 +267,16 @@ static void initialize_root_node(searchNode* node, score_t alpha, score_t beta,
   node->pov =
       1 - node->fake_color_to_move * 2;  // pov = 1 for White, -1 for Black
   node->abort = false;
+  node->killer =  killer;
+  node->best_move_history = best_move_history;
 }
 
 score_t searchRoot(position_t* p, score_t alpha, score_t beta, int depth,
-                   int ply, move_t* pv, uint64_t* node_count_serial,
-                   FILE* OUT) {
+                   int ply, bestMove* pv, uint64_t* node_count_serial,
+                   FILE* OUT, int thread, sortable_move_t move_list[MAX_NUM_MOVES], move_t* killer, int* best_move_history) {
   static int num_of_moves = 0;  // number of moves in list
   // hopefully, more than we will need
-  static sortable_move_t move_list[MAX_NUM_MOVES];
+  // static sortable_move_t move_list[MAX_NUM_MOVES];
 
   if (depth == 1) {
     // we are at depth 1; generate all possible moves
@@ -314,7 +292,7 @@ score_t searchRoot(position_t* p, score_t alpha, score_t beta, int depth,
 
   searchNode rootNode;
   rootNode.parent = NULL;
-  initialize_root_node(&rootNode, alpha, beta, depth, ply, p);
+  initialize_root_node(&rootNode, alpha, beta, depth, ply, p, killer, best_move_history);
 
   tbassert(rootNode.best_score == alpha, "root best score not equal alpha");
 
@@ -334,6 +312,7 @@ score_t searchRoot(position_t* p, score_t alpha, score_t beta, int depth,
     (*node_count_serial)++;
 
     // make the move.
+    // printf("Calling from searchRoot \n");
     victims_t x = make_move(&(rootNode.position), &(next_node.position), mv);
 
     if (is_ILLEGAL(x)) {
@@ -389,9 +368,16 @@ score_t searchRoot(position_t* p, score_t alpha, score_t beta, int depth,
                rootNode.alpha);
 
       rootNode.best_score = score;
-      pv[0] = mv;
-      memcpy(pv + 1, next_node.subpv, sizeof(move_t) * (MAX_PLY_IN_SEARCH - 1));
-      pv[MAX_PLY_IN_SEARCH - 1] = NULL_MOVE;
+      simple_acquire(&pv[depth].mutex);
+      if (pv[depth].has_been_set == false || score > pv[depth].score) {
+        pv[depth].score = score;
+        pv[depth].move = mv;
+        pv[depth].has_been_set = true;
+      }
+
+      // pv[0] = mv;
+      // memcpy(pv + 1, next_node.subpv, sizeof(move_t) * (MAX_PLY_IN_SEARCH - 1));
+      // pv[MAX_PLY_IN_SEARCH - 1] = NULL_MOVE;
 
       // Print out based on UCI (universal chess interface)
       double et = elapsed_time();
@@ -400,12 +386,13 @@ score_t searchRoot(position_t* p, score_t alpha, score_t beta, int depth,
       if (et < 0.00001) {
         et = 0.00001;  // hack so that we don't divide by 0
       }
+      simple_release(&pv[depth].mutex);
 
       uint64_t nps = 1000 * *node_count_serial / et;
       fprintf(OUT,
               "info depth %d move_no %d time (microsec) %d nodes %" PRIu64
-              " nps %" PRIu64 "\n",
-              depth, mv_index + 1, (int)(et * 1000), *node_count_serial, nps);
+              " nps %" PRIu64 " thread %d\n",
+              depth, mv_index + 1, (int)(et * 1000), *node_count_serial, nps, thread);
       fprintf(OUT, "info score cp %d pv %s\n", score, pvbuf);
 
       // Slide this move to the front of the move list

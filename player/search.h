@@ -6,6 +6,7 @@
 #include <stdio.h>
 
 #include "move_gen.h"
+#include "simple_mutex.h"
 
 // score_t values
 #define INF 32700
@@ -54,7 +55,7 @@ typedef struct searchNode {
   score_t orig_alpha;
   score_t alpha;
   score_t beta;
-  uint8_t depth;
+  int depth;
   int ply;
   color_t fake_color_to_move;
   int quiescence;
@@ -65,6 +66,8 @@ typedef struct searchNode {
   int best_move_index;
   position_t position;
   move_t subpv[MAX_PLY_IN_SEARCH];
+  move_t* killer;
+  int* best_move_history;
 } searchNode;
 
 void init_tics();
@@ -72,12 +75,19 @@ void init_abort_timer(double goal_time);
 double elapsed_time();
 bool should_abort();
 void reset_abort();
-void init_best_move_history();
+// void init_best_move_history();
 bool is_draw(position_t* p);
 move_t get_move(sortable_move_t sortable_mv);
-move_t get_move_from_heap(sortable_move_t* move_heap, sortable_move_t* sorted_moves, int num_sorted, int num_moves);
-score_t searchRoot(position_t* p, score_t alpha, score_t beta, int depth, int ply, move_t* pv,
-                   uint64_t* node_count_serial, FILE* OUT);
+
+typedef struct bestMove {
+  int score;
+  move_t move;
+  bool has_been_set;
+  simple_mutex_t mutex;
+} bestMove;
+
+score_t searchRoot(position_t* p, score_t alpha, score_t beta, int depth, int ply, bestMove* pv,
+                   uint64_t* node_count_serial, FILE* OUT, int thread, sortable_move_t move_list[MAX_NUM_MOVES], move_t* killer, int* best_move_history);
 
 typedef enum { MOVE_EVALUATED, MOVE_ILLEGAL, MOVE_IGNORE, MOVE_GAMEOVER } moveEvaluationResult_t;
 

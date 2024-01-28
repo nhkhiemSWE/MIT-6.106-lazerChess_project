@@ -9,17 +9,7 @@
 bool player_wins(position_t* p, color_t c) {
   int white_monarchs = 0;
   int black_monarchs = 0;
-  // for (fil_t f = 0; f < BOARD_WIDTH; f++) {
-  //   for (rnk_t r = 0; r < BOARD_WIDTH; r++) {
-  //     piece_t piece = p->board[square_of(f, r)];
-  //     if (ptype_of(piece) == MONARCH) {
-  //       if (color_of(piece) == WHITE)
-  //         white_monarchs++;
-  //       else
-  //         black_monarchs++;
-  //     }
-  //   }
-  // }
+
   if (get_monarch(p, WHITE, 0)) white_monarchs ++;
   if (get_monarch(p, WHITE, 1)) white_monarchs ++;
   if (get_monarch(p, BLACK, 0)) black_monarchs ++;

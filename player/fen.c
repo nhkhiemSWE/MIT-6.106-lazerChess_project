@@ -89,7 +89,7 @@ static int parse_fen_board(position_t* p, const char* fen) {
         square_t white_sq = square_of(f, r);
         piece = &(p->board[white_sq]);
         set_color(piece, WHITE);
-        p->piece_loc[WHITE] |= mailbox[white_sq];
+        p->piece_loc[WHITE] |= sq_to_bitmask[white_sq];
 
         if (next_c == 'N') {  // White Monarch facing North
           if (white_monarch_count > 1) {
@@ -120,7 +120,7 @@ static int parse_fen_board(position_t* p, const char* fen) {
         square_t black_sq = square_of(f, r);
         piece = &(p->board[black_sq]);
         set_color(piece, BLACK);
-        p->piece_loc[BLACK] |= mailbox[black_sq];
+        p->piece_loc[BLACK] |= sq_to_bitmask[black_sq];
 
         if (next_c == 'n') {  // Black Monarch facing North
           if (black_monarch_count > 1) {
@@ -151,7 +151,7 @@ static int parse_fen_board(position_t* p, const char* fen) {
         white_sq = square_of(f, r);
         piece = &(p->board[white_sq]);
         set_color(piece, WHITE);
-        p->piece_loc[WHITE] |= mailbox[white_sq];
+        p->piece_loc[WHITE] |= sq_to_bitmask[white_sq];
 
         if (next_c == 'S') {  // White Monarch facing SOUTH
           if (white_monarch_count > 1) {
@@ -182,7 +182,7 @@ static int parse_fen_board(position_t* p, const char* fen) {
         black_sq = square_of(f, r);
         piece = &(p->board[black_sq]);
         set_color(piece, BLACK);
-        p->piece_loc[BLACK] |= mailbox[black_sq];
+        p->piece_loc[BLACK] |= sq_to_bitmask[black_sq];
 
         if (next_c == 's') {  // Black Monarch facing South
           if (black_monarch_count > 1) {
@@ -223,7 +223,7 @@ static int parse_fen_board(position_t* p, const char* fen) {
           set_ptype(piece, MONARCH);
           set_color(piece, WHITE);
           set_ori(piece, EE);
-          p->piece_loc[WHITE] |= mailbox[white_sq];
+          p->piece_loc[WHITE] |= sq_to_bitmask[white_sq];
         } else {
           fen_error(fen, c_count + 1, "Syntax error");
           return 0;
@@ -249,7 +249,7 @@ static int parse_fen_board(position_t* p, const char* fen) {
           set_ptype(piece, MONARCH);
           set_color(piece, WHITE);
           set_ori(piece, WW);
-          p->piece_loc[WHITE] |= mailbox[white_sq];
+          p->piece_loc[WHITE] |= sq_to_bitmask[white_sq];
         } else {
           fen_error(fen, c_count + 1, "Syntax error");
           return 0;
@@ -275,7 +275,7 @@ static int parse_fen_board(position_t* p, const char* fen) {
           set_ptype(piece, MONARCH);
           set_color(piece, BLACK);
           set_ori(piece, EE);
-          p->piece_loc[BLACK] |= mailbox[black_sq];
+          p->piece_loc[BLACK] |= sq_to_bitmask[black_sq];
         } else {
           fen_error(fen, c_count + 1, "Syntax error");
           return 0;
@@ -301,7 +301,7 @@ static int parse_fen_board(position_t* p, const char* fen) {
           set_ptype(piece, MONARCH);
           set_color(piece, BLACK);
           set_ori(piece, WW);
-          p->piece_loc[BLACK] |= mailbox[black_sq];
+          p->piece_loc[BLACK] |= sq_to_bitmask[black_sq];
         } else {
           fen_error(fen, c_count + 1, "Syntax error");
           return 0;

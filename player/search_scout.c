@@ -44,6 +44,37 @@ static void initialize_scout_node(searchNode* node, int depth) {
   node->pov = 1 - node->fake_color_to_move * 2;
   node->best_move_index = 0;  // index of best move found
   node->abort = false;
+  node->killer = node->parent->killer;
+  node->best_move_history = node->parent->best_move_history;
+}
+
+bool process_move(move_t mv, int index, searchNode* node, move_t killer_a, move_t killer_b, uint64_t* node_count_serial) {
+  if (TRACE_MOVES) {
+    print_move_info(mv, node->ply, &node->position);
+  }
+  // printf("Calling from process_move \n");
+  moveEvaluationResult result = evaluateMove(node, mv, killer_a, killer_b, SEARCH_SCOUT, node_count_serial);
+
+  finish_search(node->position.key, mv) ;
+
+  if (result.type == MOVE_ILLEGAL || result.type == MOVE_IGNORE || abortf || parallel_parent_aborted(node)) {
+    return false;
+  }
+
+  // A legal move, but when we are in quiescence
+  // we only want to count moves that has a capture.
+  if (result.type == MOVE_EVALUATED) {
+    node->legal_move_count++;
+  }
+
+  // process the score. Note that this mutates fields in node.
+  bool cutoff = search_process_score(node, mv, index, &result, SEARCH_SCOUT);
+
+  if (cutoff) {
+    node->abort = true;
+    return true;
+  }
+  return false;
 }
 
 static score_t scout_search(searchNode* node, int depth,
@@ -71,109 +102,69 @@ static score_t scout_search(searchNode* node, int depth,
   node->quiescence = pre_evaluation_result.should_enter_quiescence;
 
   // Grab the killer-moves for later use.
-  move_t killer_a = killer[KMT(node->ply, 0)];
-  move_t killer_b = killer[KMT(node->ply, 1)];
+  move_t killer_a = node->killer[KMT(node->ply, 0)];
+  move_t killer_b = node->killer[KMT(node->ply, 1)];
 
   // Store the sorted move list on the stack.
   //   MAX_NUM_MOVES is all that we need.
-  // sortable_move_t move_list[MAX_NUM_MOVES];
-  sortable_move_t move_heap[MAX_NUM_MOVES];
+  sortable_move_t move_list_with_sentinel[MAX_NUM_MOVES];
+  move_list_with_sentinel[0].key = MAX_SORT_KEY;
+  sortable_move_t* move_list = move_list_with_sentinel + 1;
+
 
   // Obtain the sorted move list.
-  // int num_of_moves = get_sortable_move_list(node, move_list, hash_table_move);
-  // int num_of_moves = get_sortable_move_list(node, move_heap, hash_table_move);
-  int num_of_moves = generate_all(&(node->position), move_heap);
-
-  sortable_move_t sorted_moves[num_of_moves];
-
-  int num_best = get_move_list_and_process_best(
-      node, move_heap, num_of_moves, sorted_moves, hash_table_move);
-
+  int num_of_moves = get_sortable_move_list_partial(node, move_list, hash_table_move);
   int number_of_moves_evaluated = 0;
 
   // A simple mutex. See simple_mutex.h for implementation details.
-  // simple_mutex_t node_mutex;
-  // init_simple_mutex(&node_mutex);
-  for (int i = 0; i < num_best; i++) {
-    // Get the next move from the move list.
-    int local_index = number_of_moves_evaluated++;
-    move_t mv = sorted_moves[i].mv;
+  simple_mutex_t node_mutex;
+  init_simple_mutex(&node_mutex);
 
-    if (TRACE_MOVES) {
-      print_move_info(mv, node->ply, &node->position);
-    }
+  sortable_move_t tried[MAX_NUM_MOVES];
 
-    // increase node count
-    __sync_fetch_and_add(node_count_serial, 1);
+  if (num_of_moves > 0) {
+    move_t best_move = get_best_move(move_list, num_of_moves);
+    tried[number_of_moves_evaluated].mv = best_move;
+    // printf("Calling from scout_search after finding best_move \n");
+    bool cutoff = process_move(best_move, number_of_moves_evaluated, node, killer_a, killer_b, node_count_serial);
+    number_of_moves_evaluated++;
 
-    moveEvaluationResult result = evaluateMove(node, mv, killer_a, killer_b,
-                                               SEARCH_SCOUT, node_count_serial);
+    if (!cutoff) { // Have to evaluate more than one move
+      //Sort the move list
+      sort_insertion(move_list_with_sentinel, num_of_moves + 1);
 
-    if (result.type == MOVE_ILLEGAL || result.type == MOVE_IGNORE || abortf ||
-        parallel_parent_aborted(node)) {
-      continue;
-    }
+      tbassert(move_eq(best_move, move_list[0].mv), "Best move is not at the front of the move_list");
 
-    // A legal move, but when we are in quiescence
-    // we only want to count moves that has a capture.
-    if (result.type == MOVE_EVALUATED) {
-      node->legal_move_count++;
-    }
+      sortable_move_t deferred[MAX_NUM_MOVES];
+      int deferred_count = 0;
+      bool isFirst = true;
+      sortable_move_t* moves_to_scan = move_list + 1;
 
-    // process the score. Note that this mutates fields in node.
-    bool cutoff =
-        search_process_score(node, mv, local_index, &result, SEARCH_SCOUT);
+      for (int abd_pass = 0; abd_pass <2; abd_pass++) {
+        int move_count = (abd_pass == 0) ? num_of_moves - 1 : deferred_count;
+        for (int mv_index = 0; mv_index < move_count; mv_index++) {
+          move_t mv = get_move(moves_to_scan[mv_index]);
+          if (abd_pass == 0 && is_move_searching(node->position.key, mv) && !isFirst) {
+            deferred[deferred_count++].mv =mv;
+            isFirst = false;
+            continue;
+          }
+          tried[number_of_moves_evaluated].mv = mv;
+          set_search_move(node->position.key, mv);
+          isFirst = false;
 
-    if (cutoff) {
-      node->abort = true;
-      goto aftersorting;
-    }
-  }
-  int num_zeros = process_move_list_after_best(node, move_heap, hash_table_move,  num_of_moves);
-  // Sort the move list.
-  buildMaxHeap(move_heap, num_of_moves - num_zeros);
-
-  for (int i = 0; i < num_best; i++) {
-    move_heap[0] = move_heap[num_of_moves - i - 1];
-    heapify(move_heap, 0, num_of_moves - i - 1);
-  }
-
-  for (int mv_index = num_best; mv_index < num_of_moves - num_best; mv_index++) {
-    // Get the next move from the move list.
-    int local_index = number_of_moves_evaluated++;
-    move_t mv = get_move_from_heap(move_heap, sorted_moves, mv_index, num_of_moves);
-
-    if (TRACE_MOVES) {
-      print_move_info(mv, node->ply, &node->position);
-    }
-
-    // increase node count
-    __sync_fetch_and_add(node_count_serial, 1);
-
-    moveEvaluationResult result = evaluateMove(node, mv, killer_a, killer_b,
-                                               SEARCH_SCOUT, node_count_serial);
-
-    if (result.type == MOVE_ILLEGAL || result.type == MOVE_IGNORE || abortf ||
-        parallel_parent_aborted(node)) {
-      continue;
-    }
-
-    // A legal move, but when we are in quiescence
-    // we only want to count moves that has a capture.
-    if (result.type == MOVE_EVALUATED) {
-      node->legal_move_count++;
-    }
-
-    // process the score. Note that this mutates fields in node.
-    bool cutoff =
-        search_process_score(node, mv, local_index, &result, SEARCH_SCOUT);
-
-    if (cutoff) {
-      node->abort = true;
-      break;
+          bool cutoff = process_move(mv, number_of_moves_evaluated++, node, killer_a, killer_b, node_count_serial);
+          if (cutoff) {
+            mv_index ++;
+            break;
+          }
+        }
+        moves_to_scan = deferred;
+      }
     }
   }
-  aftersorting:
+  // increase node count
+  __sync_fetch_and_add(node_count_serial, 1);
 
   if (parallel_parent_aborted(node)) {
     return 0;
@@ -181,7 +172,7 @@ static score_t scout_search(searchNode* node, int depth,
 
   if (node->quiescence == false) {
     update_best_move_history(&(node->position), node->best_move_index,
-                              sorted_moves, number_of_moves_evaluated);
+                              tried, number_of_moves_evaluated, node->best_move_history);
   }
 
   tbassert(abs(node->best_score) != -INF, "best_score = %d\n",

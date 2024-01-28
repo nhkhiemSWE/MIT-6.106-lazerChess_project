@@ -8,24 +8,19 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-
+#include "simple_mutex.h"
 #include "tbassert.h"
 
 int HASH;    // hash table size in MBytes
 int USE_TT;  // Use the transposition table.
 // Turn off for deterministic behavior of the search.
 
+#define NUM_LOCK 6
+simple_mutex_t tt_lock[NUM_LOCK];
+uint64_t simple_mutex_mask = NUM_LOCK-1;
+
 // the actual record that holds the data for the transposition
 // typedef to be ttRec_t in tt.h
-// struct ttRec {
-//   uint64_t key;
-//   move_t move;
-//   score_t score;
-//   uint8_t quality;
-//   uint8_t bound : 2;
-//   uint8_t age;
-// };
-
 struct compressedTTRec {
   uint64_t key;
   uint64_t data;
@@ -155,7 +150,7 @@ void static inline __attribute__((always_inline)) set_move_compressed (compresse
 }
 
 // each set is a RECORDE_PER_SET-way set-associative cache of records
-#define RECORDS_PER_SET 8
+#define RECORDS_PER_SET 2
 typedef struct {
   compressedTTRec_t records[RECORDS_PER_SET];
 } ttSet_t;
@@ -211,6 +206,9 @@ void tt_resize_hashtable(int size_in_meg) {
 void tt_make_hashtable(int size_in_meg) {
   hashtable.tt_set = NULL;
   tt_resize_hashtable(size_in_meg);
+  for (int i = 0; i< NUM_LOCK; i ++) {
+    init_simple_mutex(&tt_lock[i]);
+  }
 }
 
 void tt_free_hashtable() {

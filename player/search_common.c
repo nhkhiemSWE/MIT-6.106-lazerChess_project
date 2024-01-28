@@ -79,20 +79,24 @@ bool is_draw(position_t* p) {
   // Check whether this move has been repeated at least DRAW_NUM_REPS times over
   // the history of the game or 2x within the search
   const uint64_t cur = p->key;
-  const int ply = p->ply;
-  size_t reps_history = 0;
+  size_t reps_history = 1;
   size_t reps_search = 0;
 
-  while (p != NULL) {
-    const bool isSamePlayer = p->ply % 2 == ply % 2;
+  if (!p->was_played) {
+    reps_search++;
+  }
+  int nply_since_victim = p->nply_since_victim - 2;
+
+  while (nply_since_victim >= 0) {
+    nply_since_victim -= 2;
+    p = p->history->history;
     const bool isSameBoard = p->key == cur;
-    if (isSamePlayer && isSameBoard) {
-      reps_history++;
+    if (isSameBoard) {
+      reps_history ++;
       if (!(p->was_played)) {
-        reps_search++;
+        reps_search ++;
       }
     };
-    p = p->history;
   }
   if ((reps_history >= DRAW_NUM_REPS) || (reps_search >= 2)) {
     return true;
@@ -101,13 +105,13 @@ bool is_draw(position_t* p) {
   return false;
 }
 
-static void getPV(move_t* pv, char* buf, size_t bufsize) {
+static void getPV(bestMove* pv, char* buf, size_t bufsize) {
   buf[0] = 0;
 
-  for (int i = 0; i < (MAX_PLY_IN_SEARCH - 1) && !move_eq(pv[i], NULL_MOVE);
+  for (int i = 0; i < (MAX_PLY_IN_SEARCH - 1) && pv[i].has_been_set;
        i++) {
     char a[MAX_CHARS_IN_MOVE];
-    move_to_str(pv[i], a, MAX_CHARS_IN_MOVE);
+    move_to_str(pv[i].move, a, MAX_CHARS_IN_MOVE);
     if (i != 0) {
       strncat(buf, " ",
               bufsize - strlen(buf) - 1);  // - 1, for the terminating '\0'
@@ -209,6 +213,7 @@ static moveEvaluationResult evaluateMove(searchNode* node, move_t mv,
   result.next_node.parent = node;
 
   // Make the move, and get any victim pieces.
+  // printf("Calling from search_common \n");
   victims_t victims =
       make_move(&(node->position), &(result.next_node.position), mv);
 
@@ -313,55 +318,28 @@ static moveEvaluationResult evaluateMove(searchNode* node, move_t mv,
   return result;
 }
 
-// Insertion sort of the move list.
-//DELETED
-
-static void heapify(sortable_move_t* move_list, int num_of_moves, int root) {
-  int largest = root;
-  int left = 2 * root + 1;
-  int right = 2 * root + 2;
-
-  if (left < num_of_moves &&
-      move_list[left].key > move_list[largest].key) {
-    largest = left;
+// Return move with the highest key in the list of moves
+static move_t get_best_move(sortable_move_t* move_list, int num_of_moves) {
+  sortable_move_t* best = NULL;
+  for (int j = 0; j < num_of_moves; j++) {
+    if (!best || move_list[j].key > best->key) {
+      best = move_list + j;
+    } 
   }
-
-  if (right < num_of_moves &&
-      move_list[right].key > move_list[largest].key) {
-    largest = right;
-  }
-
-  if (largest != root) {
-    sortable_move_t temp = move_list[root];
-    move_list[root] = move_list[largest];
-    move_list[largest] = temp;
-
-    heapify(move_list, num_of_moves, largest);
-  }
+  return best->mv;
 }
 
-void buildMaxHeap(sortable_move_t* move_list, int num_of_moves) {
-  for (int i = num_of_moves / 2 - 1; i >= 0; i--) {
-    heapify(move_list, num_of_moves, i);
+// Insertion sort of the move list. Assumes there is a sentinel at the start of the move_list
+static void sort_insertion(sortable_move_t* move_list, int num_of_moves) {
+  for (int j = 1 ; j < num_of_moves; j ++) {
+    sortable_move_t insert = move_list[j];
+    int hole = j;
+    while (insert.key > move_list[hole - 1].key) {
+      move_list[hole] = move_list[hole-1];
+      hole--;
+    }
+    move_list[hole] = insert;
   }
-}
-
-move_t get_move_from_heap(sortable_move_t* move_heap,
-                                 sortable_move_t* sorted_moves, int num_sorted, int num_moves) {
-
-  int heap_size = num_moves - num_sorted;
-  if (heap_size == 0) {
-    return NULL_MOVE;
-  }
-
-  sortable_move_t max = move_heap[0];
-
-  move_heap[0] = move_heap[heap_size - 1];
-
-  heapify(move_heap, heap_size - 1, 0);
-
-  sorted_moves[num_sorted] = max;
-  return max.mv;
 }
 
 // Returns true if a cutoff was triggered, false otherwise.
@@ -383,9 +361,9 @@ static bool search_process_score(searchNode* node, move_t mv, int mv_index,
     }
 
     if (result->score >= node->beta) {
-      if (!move_eq(mv, killer[KMT(node->ply, 0)]) && ENABLE_TABLES) {
-        killer[KMT(node->ply, 1)] = killer[KMT(node->ply, 0)];
-        killer[KMT(node->ply, 0)] = mv;
+      if (!move_eq(mv, node->killer[KMT(node->ply, 0)]) && ENABLE_TABLES) {
+        node->killer[KMT(node->ply, 1)] = node->killer[KMT(node->ply, 0)];
+        node->killer[KMT(node->ply, 0)] = mv;
       }
       return true;
     }
@@ -409,81 +387,67 @@ static bool should_abort_check() {
 //
 // https://www.chessprogramming.org/Move_Ordering
 
-static uint8_t get_move_list_and_process_best(searchNode* node, sortable_move_t* move_list, int num_of_moves, sortable_move_t* sorted_moves, move_t hash_table_move) {
+static int get_sortable_move_list(searchNode* node, sortable_move_t* move_list, move_t hash_table_move) {
   // number of moves in list
-  move_t killer_a = killer[KMT(node->ply, 0)];
-  move_t killer_b = killer[KMT(node->ply, 1)];
+  int num_of_moves = generate_all(&(node->position), move_list);
 
-  uint8_t num_best = 0;
+  color_t fake_color_to_move = color_to_move_of(&(node->position));
+
+  move_t killer_a = node->killer[KMT(node->ply, 0)];
+  move_t killer_b = node->killer[KMT(node->ply, 1)];
 
   // sort special moves to the front
   for (int mv_index = 0; mv_index < num_of_moves; mv_index++) {
     move_t mv = get_move(move_list[mv_index]);
     if (move_eq(mv, hash_table_move)) {
       move_list[mv_index].key = MAX_SORT_KEY;
-      sorted_moves[num_best++] = move_list[mv_index];    
     } else if (move_eq(mv, killer_a)) {
       move_list[mv_index].key = MAX_SORT_KEY - 1;
-      sorted_moves[num_best++] = move_list[mv_index];
     } else if (move_eq(mv, killer_b)) {
       move_list[mv_index].key = MAX_SORT_KEY - 2;
-      sorted_moves[num_best++] = move_list[mv_index];
-    }
-  }
-
-    //sort moves in sorted_moves
-  for (int i = 1; i < num_best; ++i) {
-    sortable_move_t temp = sorted_moves[i];
-    int j = i - 1;
-
-    // Move elements of sorted_moves[0..i-1], that are smaller than key,
-    // to one position ahead of their current position
-    while (j >= 0 && sorted_moves[j].key < temp.key) {
-        sorted_moves[j + 1] = sorted_moves[j];
-        j = j - 1;
-    }
-    sorted_moves[j + 1] = temp;
-  }
-
-  return num_best;
-}
-static int process_move_list_after_best(searchNode* node, sortable_move_t* move_list, move_t hash_table_move, int num_of_moves) {
-  color_t fake_color_to_move = color_to_move_of(&(node->position));
-
-  move_t killer_a = killer[KMT(node->ply, 0)];
-  move_t killer_b = killer[KMT(node->ply, 1)];
-
-  int current_index = 0;
-  int num_zeros = 0;
-
-  for (int i = 0; i < num_of_moves; i++) {
-    move_t mv = get_move(move_list[current_index]);
-    if (move_eq(mv, hash_table_move)) {
-      move_list[current_index].key = MAX_SORT_KEY;
-      current_index++;
-    } else if (move_eq(mv, killer_a)) {
-      move_list[current_index].key = MAX_SORT_KEY - 1;
-      current_index++;
-    } else if (move_eq(mv, killer_b)) {
-      move_list[current_index].key = MAX_SORT_KEY - 2;
-      current_index++;
     } else {
       ptype_t pce = mv.typ;
       rot_t ro = mv.rot;
       square_t fs = mv.from_sq;
       square_t ts = mv.to_sq;
       int ot = (ori_of(node->position.board[fs]) + ro) % NUM_ORI;
-      move_list[current_index].key =
-          best_move_history[BMH(fake_color_to_move, pce, ts, ot)];
-      if (move_list[current_index].key == 0) {
-        num_zeros++;
-        sortable_move_t tmp = move_list[num_of_moves - num_zeros];
-        move_list[num_of_moves-num_zeros] = move_list[current_index];
-        move_list[current_index] = tmp;
-      } else {
-        current_index++;
-      }
+      move_list[mv_index].key = node->best_move_history[BMH(fake_color_to_move, pce, ts, ot)];
     }
   }
-  return num_zeros;
+  return num_of_moves;
 }
+
+static int get_sortable_move_list_partial(searchNode* node, sortable_move_t* move_list, move_t hash_table_move) {
+  // number of moves in list
+    int num_of_moves = generate_all(&(node->position), move_list);
+
+  color_t fake_color_to_move = color_to_move_of(&(node->position));
+
+  move_t killer_a = node->killer[KMT(node->ply, 0)];
+  move_t killer_b = node->killer[KMT(node->ply, 1)];
+
+  // sort special moves to the front
+  for (int mv_index = 0; mv_index < num_of_moves; mv_index++) {
+    move_t mv = get_move(move_list[mv_index]);
+    if (move_eq(mv, hash_table_move)) {
+      move_list[mv_index].key = MAX_SORT_KEY;
+    } else if (move_eq(mv, killer_a)) {
+      move_list[mv_index].key = MAX_SORT_KEY - 1;
+    } else if (move_eq(mv, killer_b)) {
+      move_list[mv_index].key = MAX_SORT_KEY - 2;
+    } else {
+      ptype_t pce = mv.typ;
+      rot_t ro = mv.rot;
+      square_t fs = mv.from_sq;
+      square_t ts = mv.to_sq;
+      int ot = (ori_of(node->position.board[fs]) + ro) % NUM_ORI;
+      int key = node->best_move_history[BMH(fake_color_to_move, pce, ts, ot)];
+      if (key < 5) {
+        key = 0;
+      }
+      move_list[mv_index].key = key;
+    }
+  }
+  return num_of_moves;
+}
+

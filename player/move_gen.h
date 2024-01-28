@@ -42,7 +42,7 @@ typedef int8_t fil_t;
 #define RNK_SHIFT 0
 #define RNK_MASK 0xF
 
-static const uint64_t mailbox[100] = {
+static const uint64_t sq_to_bitmask[100] = {
 0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL,
 0ULL, 1ULL<<0, 1ULL<<1, 1ULL<<2, 1ULL<<3, 1ULL<<4, 1ULL<<5, 1ULL<<6, 1ULL<<7, 0ULL,
 0ULL, 1ULL<<8, 1ULL<<9, 1ULL<<10, 1ULL<<11, 1ULL<<12, 1ULL<<13, 1ULL<<14, 1ULL<<15, 0ULL,
@@ -54,7 +54,7 @@ static const uint64_t mailbox[100] = {
 0ULL, 1ULL<<56, 1ULL<<57, 1ULL<<58, 1ULL<<59, 1ULL<<60, 1ULL<<61, 1ULL<<62, 1ULL<<63, 0ULL,
 0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL};
 
-static const int mailbox64[64] = {
+static const int sq_to_bit_index[64] = {
   11, 12, 13, 14, 15, 16, 17, 18,
   21, 22, 23, 24, 25, 26, 27, 28,
   31, 32, 33, 34, 35, 36, 37, 38,
@@ -119,7 +119,7 @@ typedef enum { NW, NE, SE, SW } pawn_ori_t;
 #define set_ptype(p, pt) *(p) = (((pt) & PTYPE_MASK) << PTYPE_SHIFT) | (*(p) & ~(PTYPE_MASK << PTYPE_SHIFT))
 
 //Getting the orientation of the piece p
-#define ori_of(p)        (((p) >> ORI_SHIFT) & ORI_MASK)
+#define ori_of(p)    (((p) >> ORI_SHIFT) & ORI_MASK)
 //Setting the orientation of the piece p to a new orientation ori
 #define set_ori(p, ori)  *(p) = (((ori) & ORI_MASK) << ORI_SHIFT) | (*(p) & ~(ORI_MASK << ORI_SHIFT))
 
@@ -208,9 +208,6 @@ typedef struct position {
                           // FALSE: position is being considered in search
   uint64_t piece_loc[2];  // The location of all pieces of each color
   square_t monarch_loc[2][2];
-  // uint64_t laser_map[2];  // The laser coverage map
-  // uint8_t  killable[2];   // The number of pieces which can be zapped at the current position..
-                          // ..in case the player want to make a null move
 } position_t;
 
 // -----------------------------------------------------------------------------
@@ -260,7 +257,7 @@ victims_t make_move(position_t* old, position_t* p, move_t mv);
 victims_t actually_make_move(position_t* old, position_t* p, move_t mv);
 void display(position_t* p);
 void bitboardDisplay(position_t* p);
-void laserMapDisplay(position_t* p);
+// void laserMapDisplay(position_t* p);
 
 void laser_coverage_make_move(position_t* pos, move_t mv, piece_t* previous_pieces);
 void laser_coverage_unmake_move(position_t *pos, move_t mv, piece_t *previous_pieces);
@@ -271,6 +268,4 @@ bool zero_victims(victims_t victims);
 bool victim_exists(victims_t victims);
 
 bool do_pawns_touch(pawn_ori_t ori_p1, pawn_ori_t ori_p2, compass_t dir);
-void update_victim(position_t* p, square_t victim_sq);
-// static inline void add_removed_pawn(position_t* p, color_t c);
 #endif  // MOVE_GEN_H
