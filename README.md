@@ -1,10 +1,20 @@
+INRODUCTION
+===================================================================
+This is my final project of the class 6.106 - Software Performance for fall 2023 at MIT.
+The improvements include:
+* Redesigning the data-structure of the board representation and the transition table.
+* Revising the algorithm for nodes ordering during search process and the algorithm for shooting laser.
+* Implementing Young-Sibling Wait algorithm to parallelize the search process.
+The result is:
+* Exhibition Tournament: won 6 our of 8 Swiss rounds.
+* Average searched depth for Blitz and Regular mode increased from 5.6 ply to 8.5 ply.
+* Winrate is 80% against the other teams' bots and 90% against reference_bot.
+
+
 OVERVIEW
 ===================================================================
 
 Leiserchess contains the following sub directories:
-
-bin:
-* A directory for your binaries. Helpful for competitive analysis and version control.
 
 player:
 * The code for the game engine that you will be improving.
@@ -13,6 +23,9 @@ player:
 * We have provided a basic Makefile. You can type 'make' to compile the program.
   Upon compilation, a binary 'leiserchess' will be produced.
 * **Warning:** You are strongly advised **NOT** to reimplement the UCI interface in `leiserchess.c`.
+
+script:
+* The python codes to generate opening books, pre-calculated tables, and compare heuristic behavior for every updates.
 
 tester:
 * An autotesting framework for Leiserchess developed by Don Dailey, although the
