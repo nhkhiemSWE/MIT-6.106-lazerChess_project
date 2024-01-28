@@ -6,6 +6,7 @@ The improvements include:
 * Redesigning the data-structure of the board representation and the transition table.
 * Revising the algorithm for nodes ordering during search process and the algorithm for shooting laser.
 * Implementing Young-Sibling Wait algorithm to parallelize the search process.
+
 The result is:
 * Exhibition Tournament: won 6 our of 8 Swiss rounds.
 * Average searched depth for Blitz and Regular mode increased from 5.6 ply to 8.5 ply.
